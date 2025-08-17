@@ -1,9 +1,15 @@
-# Build only the keymap file
+# Build just the RDP protocol plugin with custom keymap
 FROM alpine:3.18 as builder
 
-# Install only essential build tools
+# Install build dependencies
 RUN apk add --no-cache \
+    autoconf \
+    automake \
     build-base \
+    cairo-dev \
+    freerdp-dev \
+    libtool \
+    openssl-dev \
     perl \
     wget
 
@@ -15,14 +21,29 @@ RUN wget https://downloads.apache.org/guacamole/1.6.0/source/guacamole-server-1.
 # Copy your custom keymap
 COPY pl_pl_qwerty.keymap /tmp/guacamole-server-1.6.0/src/protocols/rdp/keymaps/
 
-# Go to the keymaps directory
-WORKDIR /tmp/guacamole-server-1.6.0/src/protocols/rdp/keymaps
+# Add the keymap to Makefile.am
+WORKDIR /tmp/guacamole-server-1.6.0
+RUN cd src/protocols/rdp && \
+    sed -i '/en_us_qwerty.keymap/a\\\tkeymaps/pl_pl_qwerty.keymap \\' Makefile.am
 
-# Generate the compiled keymap file
-RUN perl generate.pl pl_pl_qwerty.keymap > pl_pl_qwerty.compiled
+# Configure only with RDP support
+RUN autoreconf -fi && \
+    ./configure \
+        --disable-guacenc \
+        --disable-guaclog \
+        --disable-ssh \
+        --disable-telnet \
+        --disable-vnc \
+        --disable-kubernetes \
+        --prefix=/opt/guacamole
 
-# Final stage - use official guacd and add the compiled keymap
+# Build only the RDP protocol
+RUN cd src/protocols/rdp && make && make install
+
+# Final stage - use official guacd and replace RDP plugin
 FROM guacamole/guacd:1.6.0
 
-# Copy the compiled keymap to where guacd expects it
-COPY --from=builder /tmp/guacamole-server-1.6.0/src/protocols/rdp/keymaps/pl_pl_qwerty.compiled /opt/guacamole/share/guacamole-server/keymaps/pl_pl_qwerty
+# Copy only the RDP protocol plugin
+COPY --from=builder /opt/guacamole/lib/libguac-client-rdp.so* /opt/guacamole/lib/
+
+# The official image already handles library paths
