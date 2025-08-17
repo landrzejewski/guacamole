@@ -27,10 +27,4 @@ RUN cd /tmp/guacamole-server-* && \
     make && \
     make install
 
-# Clean up
-RUN apt-get remove -y build-essential git automake autoconf libtool && \
-    apt-get autoremove -y && \
-    rm -rf /tmp/guacamole-server* && \
-    ldconfig
-
 USER guacd
