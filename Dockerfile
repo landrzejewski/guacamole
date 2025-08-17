@@ -1,38 +1,55 @@
-# Multi-stage build to add custom keymap to guacd
-FROM guacamole/guacd:1.6.0 as guacd-base
+# Simpler approach - build from source in Alpine
+FROM alpine:3.18
 
-FROM debian:bullseye-slim as builder
+# Install runtime dependencies
+RUN apk add --no-cache \
+    cairo \
+    freerdp \
+    freerdp-libs \
+    libjpeg-turbo \
+    libpng \
+    libssh2 \
+    libtelnet \
+    libvncserver \
+    libvorbis \
+    libwebp \
+    libwebsockets \
+    nettle \
+    openssl \
+    pango \
+    pulseaudio-libs \
+    terminus-font \
+    ttf-dejavu \
+    ttf-liberation \
+    util-linux \
+    ffmpeg-libs
 
 # Install build dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    cmake \
-    git \
+RUN apk add --no-cache --virtual .build-deps \
     autoconf \
     automake \
+    build-base \
+    cairo-dev \
+    cmake \
+    freerdp-dev \
+    git \
+    jpeg-dev \
     libtool \
-    wget \
-    libcairo2-dev \
     libpng-dev \
-    libjpeg-dev \
-    libossp-uuid-dev \
-    libfreerdp-dev \
-    libpango1.0-dev \
-    libssh2-1-dev \
+    libssh2-dev \
     libtelnet-dev \
     libvncserver-dev \
-    libwebsockets-dev \
-    libpulse-dev \
-    libssl-dev \
     libvorbis-dev \
     libwebp-dev \
-    libavcodec-dev \
-    libavformat-dev \
-    libavutil-dev \
-    libswscale-dev \
-    && rm -rf /var/lib/apt/lists/*
+    libwebsockets-dev \
+    openssl-dev \
+    pango-dev \
+    pulseaudio-dev \
+    util-linux-dev \
+    ffmpeg-dev \
+    wget
 
-# Download guacamole-server source
+# Download and build guacamole-server
 WORKDIR /tmp
 RUN wget https://downloads.apache.org/guacamole/1.6.0/source/guacamole-server-1.6.0.tar.gz \
     && tar -xzf guacamole-server-1.6.0.tar.gz
@@ -44,19 +61,27 @@ COPY pl_pl_qwerty.keymap /tmp/guacamole-server-1.6.0/src/protocols/rdp/keymaps/
 WORKDIR /tmp/guacamole-server-1.6.0/src/protocols/rdp
 RUN sed -i '/rdp_keymaps =/,/^[[:space:]]*$/{/en_us_qwerty.keymap/a\\\tkeymaps/pl_pl_qwerty.keymap \\' Makefile.am
 
-# Build guacamole-server
+# Build and install
 WORKDIR /tmp/guacamole-server-1.6.0
 RUN autoreconf -fi \
-    && ./configure --disable-guacenc --disable-guaclog \
-    && make \
+    && ./configure \
+        --prefix=/usr \
+        --sysconfdir=/etc \
+        --disable-static \
+        --disable-guaclog \
+    && make -j$(nproc) \
     && make install
 
-# Final stage - use the official base and replace only the RDP plugin
-FROM guacamole/guacd:1.6.0
+# Cleanup
+RUN apk del .build-deps \
+    && rm -rf /tmp/* /var/tmp/* /var/cache/apk/*
 
-# Copy the newly built RDP plugin with custom keymap
-COPY --from=builder /usr/local/lib/libguac-client-rdp.so* /usr/local/lib/
-COPY --from=builder /usr/local/lib/freerdp2/*.so /usr/local/lib/freerdp2/
+# Create guacd user
+RUN addgroup -S guacd && adduser -S -G guacd guacd
 
-# Update library cache
-RUN ldconfig
+# Expose guacd port
+EXPOSE 4822
+
+# Set user and start guacd
+USER guacd
+CMD ["guacd", "-b", "0.0.0.0", "-f"]
