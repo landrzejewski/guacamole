@@ -1,4 +1,4 @@
-FROM debian:bullseye-slim as builder
+FROM debian:bookworm-slim as builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -7,7 +7,26 @@ RUN apt-get update && apt-get install -y \
     automake \
     autoconf \
     libtool \
-    # ... (all the -dev packages from above)
+    libcairo2-dev \
+    libjpeg62-turbo-dev \
+    libpng-dev \
+    libtool-bin \
+    libossp-uuid-dev \
+    libavcodec-dev \
+    libavformat-dev \
+    libavutil-dev \
+    libswscale-dev \
+    freerdp2-dev \
+    libpango1.0-dev \
+    libssh2-1-dev \
+    libtelnet-dev \
+    libvncserver-dev \
+    libwebsockets-dev \
+    libpulse-dev \
+    libssl-dev \
+    libvorbis-dev \
+    libwebp-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Clone and build guacamole-server
 RUN git clone https://github.com/apache/guacamole-server.git /guacamole-server
@@ -25,14 +44,37 @@ RUN autoreconf -fi \
     && make install
 
 # Final stage
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
 # Copy built files
 COPY --from=builder /usr/local /usr/local
 
 # Install runtime dependencies only
 RUN apt-get update && apt-get install -y \
-    # ... (runtime packages without -dev suffix)
+    netcat-openbsd \
+    ca-certificates \
+    ghostscript \
+    fonts-liberation \
+    fonts-dejavu \
+    xfonts-terminus \
+    libcairo2 \
+    libjpeg62-turbo \
+    libpng16-16 \
+    libossp-uuid16 \
+    libavcodec59 \
+    libavformat59 \
+    libavutil57 \
+    libswscale6 \
+    freerdp2-x11 \
+    libpango-1.0-0 \
+    libssh2-1 \
+    libtelnet2 \
+    libvncclient1 \
+    libwebsockets17 \
+    libpulse0 \
+    libssl3 \
+    libvorbis0a \
+    libwebp7 \
     && rm -rf /var/lib/apt/lists/* \
     && ldconfig
 
