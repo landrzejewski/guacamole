@@ -1,67 +1,25 @@
-# Build complete guacamole-server with custom keymap
-FROM alpine:3.18 AS builder
+# ---------- Build stage ----------
+FROM alpine:3.20 AS build
 
-# Install all build dependencies
-# Split into multiple RUN commands to identify which package fails
-RUN apk add --no-cache \
-    autoconf \
-    automake \
-    build-base \
-    cairo-dev \
-    libjpeg-turbo-dev \
-    libtool \
-    libpng-dev \
-    openssl-dev \
-    perl \
-    wget
-
-# Install protocol-specific dependencies
-RUN apk add --no-cache \
-    freerdp-dev || true
-
-RUN apk add --no-cache \
-    libssh2-dev \
-    pango-dev || true
-
-RUN apk add --no-cache \
-    libvncserver-dev || true
-
-RUN apk add --no-cache \
-    libwebsockets-dev \
-    libvorbis-dev \
-    libwebp-dev || true
-
-# Try to install optional dependencies
-RUN apk add --no-cache \
-    pulseaudio-dev \
-    ffmpeg-dev \
-    libtelnet-dev \
-    ossp-uuid-dev || true
-
-# Download guacamole-server source
+ARG VER=1.6.0
 WORKDIR /tmp
-RUN wget https://downloads.apache.org/guacamole/1.6.0/source/guacamole-server-1.6.0.tar.gz \
-    && tar -xzf guacamole-server-1.6.0.tar.gz
 
-# Copy your custom keymap
-COPY pl_pl_qwerty.keymap /tmp/guacamole-server-1.6.0/src/protocols/rdp/keymaps/
+RUN apk add --no-cache \
+    build-base autoconf automake libtool pkgconfig wget tar \
+    cairo-dev libpng-dev jpeg-dev libwebp-dev util-linux-dev \
+    freerdp-dev libvncserver-dev libssh2-dev \
+    libwebsockets-dev pango-dev \
+    ffmpeg-dev
 
-# Add the keymap to Makefile.am
-WORKDIR /tmp/guacamole-server-1.6.0
-RUN cd src/protocols/rdp && \
-    sed -i '/en_us_qwerty.keymap/a\\\tkeymaps/pl_pl_qwerty.keymap \\' Makefile.am
+# Download sources
+RUN wget -q https://downloads.apache.org/guacamole/${VER}/source/guacamole-server-${VER}.tar.gz \
+ && tar -xzf guacamole-server-${VER}.tar.gz
 
-# Configure with all features (it will auto-detect what's available)
-RUN autoreconf -fi && \
-    ./configure --prefix=/opt/guacamole
+# Copy in your custom keymap
+COPY pl_pl_qwerty.keymap guacamole-server-${VER}/src/protocols/rdp/keymaps/pl_pl_qwerty.keymap
 
-# Build everything
-RUN make && make install
-
-# Final stage - use official guacd and replace the binaries
-FROM guacamole/guacd:1.6.0
-
-# Copy all the built files
-COPY --from=builder /opt/guacamole /opt/guacamole
-
-# The official image already has all runtime dependencies
+# Build with your keymap included
+RUN cd guacamole-server-${VER} \
+ && ./configure --prefix=/usr --sysconfdir=/etc --disable-telnet \
+ && make -j"$(nproc)" \
+ && make DESTDIR=/tmp/install install
