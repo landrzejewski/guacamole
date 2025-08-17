@@ -54,15 +54,15 @@ RUN apk add --no-cache \
   busybox-extras tini \
  && fc-cache -f
 
-# Make a writable font cache and log dirs; keep guacd happy
+# Create non-root user FIRST
+RUN adduser -D -H -s /sbin/nologin guacd
+
+# Create writable font cache & runtime dirs, then chown to guacd
 RUN mkdir -p /var/cache/fontconfig /run/guacd /var/log/guacd \
  && chown -R guacd:guacd /var/cache/fontconfig /run/guacd /var/log/guacd
 
-# Tell Fontconfig to use the writable cache dir (user has no home)
+# Tell Fontconfig where to cache (since user has no home)
 ENV XDG_CACHE_HOME=/var/cache/fontconfig
-
-# Non-root user
-RUN adduser -D -H -s /sbin/nologin guacd
 
 # Copy built artifacts
 COPY --from=build /stage/ /
