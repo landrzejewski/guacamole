@@ -2,18 +2,19 @@ FROM guacamole/guacd:latest
 
 # Install build tools temporarily
 USER root
-RUN apt-get update && apt-get install -y \
-    build-essential \
+RUN apk add --no-cache \
+    build-base \
     git \
     automake \
     autoconf \
     libtool \
-    && rm -rf /var/lib/apt/lists/*
+    wget \
+    tar
 
 # Get the source code that matches the installed version
-RUN GUACD_VERSION=$(guacd -v | grep -oP 'guacd version \K[0-9.]+') && \
+RUN GUACD_VERSION=$(guacd -v 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1) && \
     cd /tmp && \
-    wget -O guacamole-server.tar.gz "https://apache.org/dyn/closer.lua/guacamole/${GUACD_VERSION}/source/guacamole-server-${GUACD_VERSION}.tar.gz?action=download" && \
+    wget -O guacamole-server.tar.gz "https://archive.apache.org/dist/guacamole/${GUACD_VERSION}/source/guacamole-server-${GUACD_VERSION}.tar.gz" && \
     tar -xzf guacamole-server.tar.gz
 
 # Copy your keymap
@@ -27,4 +28,10 @@ RUN cd /tmp/guacamole-server-* && \
     make && \
     make install
 
+# Clean up
+RUN apk del build-base git automake autoconf libtool wget tar && \
+    rm -rf /tmp/guacamole-server* && \
+    ldconfig || true
+
+# Switch back to the guacd user if it exists
 USER guacd
