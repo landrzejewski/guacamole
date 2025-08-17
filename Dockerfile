@@ -1,4 +1,4 @@
-FROM guacamole/guaca:latest
+FROM guacamole/guacd:latest
 
 RUN sed -i '19s/parent "base"/parent "base_altgr"/' \
     /src/protocols/rdp/keymaps/pl_pl_qwerty.keymap
