@@ -7,10 +7,8 @@ RUN apk add --no-cache \
     automake \
     build-base \
     cairo-dev \
-    cmake \
     freerdp-dev \
-    git \
-    jpeg-dev \
+    libjpeg-turbo-dev \
     libtool \
     libpng-dev \
     libssh2-dev \
@@ -22,7 +20,7 @@ RUN apk add --no-cache \
     openssl-dev \
     pango-dev \
     pulseaudio-dev \
-    util-linux-dev \
+    ossp-uuid-dev \
     ffmpeg-dev \
     perl \
     wget
