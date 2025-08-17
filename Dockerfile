@@ -1,15 +1,29 @@
-# Build just the RDP protocol plugin with custom keymap
+# Build complete guacamole-server with custom keymap
 FROM alpine:3.18 as builder
 
-# Install build dependencies
+# Install all build dependencies
 RUN apk add --no-cache \
     autoconf \
     automake \
     build-base \
     cairo-dev \
+    cmake \
     freerdp-dev \
+    git \
+    jpeg-dev \
     libtool \
+    libpng-dev \
+    libssh2-dev \
+    libtelnet-dev \
+    libvncserver-dev \
+    libvorbis-dev \
+    libwebp-dev \
+    libwebsockets-dev \
     openssl-dev \
+    pango-dev \
+    pulseaudio-dev \
+    util-linux-dev \
+    ffmpeg-dev \
     perl \
     wget
 
@@ -26,24 +40,17 @@ WORKDIR /tmp/guacamole-server-1.6.0
 RUN cd src/protocols/rdp && \
     sed -i '/en_us_qwerty.keymap/a\\\tkeymaps/pl_pl_qwerty.keymap \\' Makefile.am
 
-# Configure only with RDP support
+# Configure with all features
 RUN autoreconf -fi && \
-    ./configure \
-        --disable-guacenc \
-        --disable-guaclog \
-        --disable-ssh \
-        --disable-telnet \
-        --disable-vnc \
-        --disable-kubernetes \
-        --prefix=/opt/guacamole
+    ./configure --prefix=/opt/guacamole
 
-# Build only the RDP protocol
-RUN cd src/protocols/rdp && make && make install
+# Build everything
+RUN make && make install
 
-# Final stage - use official guacd and replace RDP plugin
+# Final stage - use official guacd and replace the binaries
 FROM guacamole/guacd:1.6.0
 
-# Copy only the RDP protocol plugin
-COPY --from=builder /opt/guacamole/lib/libguac-client-rdp.so* /opt/guacamole/lib/
+# Copy all the built files
+COPY --from=builder /opt/guacamole /opt/guacamole
 
-# The official image already handles library paths
+# The official image already has all runtime dependencies
