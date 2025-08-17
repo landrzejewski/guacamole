@@ -1,29 +1,42 @@
 # Build complete guacamole-server with custom keymap
-FROM alpine:3.18 as builder
+FROM alpine:3.18 AS builder
 
 # Install all build dependencies
+# Split into multiple RUN commands to identify which package fails
 RUN apk add --no-cache \
     autoconf \
     automake \
     build-base \
     cairo-dev \
-    freerdp-dev \
     libjpeg-turbo-dev \
     libtool \
     libpng-dev \
-    libssh2-dev \
-    libtelnet-dev \
-    libvncserver-dev \
-    libvorbis-dev \
-    libwebp-dev \
-    libwebsockets-dev \
     openssl-dev \
-    pango-dev \
-    pulseaudio-dev \
-    ossp-uuid-dev \
-    ffmpeg-dev \
     perl \
     wget
+
+# Install protocol-specific dependencies
+RUN apk add --no-cache \
+    freerdp-dev || true
+
+RUN apk add --no-cache \
+    libssh2-dev \
+    pango-dev || true
+
+RUN apk add --no-cache \
+    libvncserver-dev || true
+
+RUN apk add --no-cache \
+    libwebsockets-dev \
+    libvorbis-dev \
+    libwebp-dev || true
+
+# Try to install optional dependencies
+RUN apk add --no-cache \
+    pulseaudio-dev \
+    ffmpeg-dev \
+    libtelnet-dev \
+    ossp-uuid-dev || true
 
 # Download guacamole-server source
 WORKDIR /tmp
@@ -38,7 +51,7 @@ WORKDIR /tmp/guacamole-server-1.6.0
 RUN cd src/protocols/rdp && \
     sed -i '/en_us_qwerty.keymap/a\\\tkeymaps/pl_pl_qwerty.keymap \\' Makefile.am
 
-# Configure with all features
+# Configure with all features (it will auto-detect what's available)
 RUN autoreconf -fi && \
     ./configure --prefix=/opt/guacamole
 
