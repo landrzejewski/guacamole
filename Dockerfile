@@ -8,7 +8,7 @@ FROM alpine:3.20 AS build
 ARG VER=1.6.0
 WORKDIR /src
 
-# Build dependencies (no libtelnet on Alpine 3.20)
+# Build dependencies (no Telnet on Alpine 3.20)
 RUN apk add --no-cache \
   build-base autoconf automake libtool pkgconfig wget tar \
   ccache \
@@ -25,7 +25,7 @@ RUN wget -q https://downloads.apache.org/guacamole/${VER}/source/guacamole-serve
 # Replace Polish QWERTY keymap before configure
 COPY pl_pl_qwerty.keymap guacamole-server-${VER}/src/protocols/rdp/keymaps/pl_pl_qwerty.keymap
 
-# Configure & build (disable Telnet), stage install into /stage
+# Configure & build (disable Telnet); stage install into /stage
 RUN cd guacamole-server-${VER} \
  && export CC="ccache gcc" CXX="ccache g++" \
  && export CFLAGS="-O2 -pipe" CXXFLAGS="-O2 -pipe" LDFLAGS="-Wl,--as-needed" \
@@ -33,7 +33,7 @@ RUN cd guacamole-server-${VER} \
  && make -j"$(nproc)" \
  && make DESTDIR=/stage install
 
-# Strip and prune unneeded files from the staged tree
+# Strip binaries and prune unneeded files from staged tree
 RUN cd /stage \
  && find . -type f -name "*.a" -delete \
  && find . -type f -name "*.la" -delete \
@@ -45,20 +45,25 @@ RUN cd /stage \
 ############################
 FROM alpine:3.20
 
-# Minimal runtime libs (no Telnet)
+# Minimal runtime + fonts (fixes "unable to load font monospace")
 RUN apk add --no-cache \
   cairo libpng libjpeg-turbo libwebp util-linux \
   freerdp libvncserver libssh2 \
   libwebsockets pango ffmpeg-libs \
-  busybox-extras tini
+  fontconfig ttf-dejavu \
+  busybox-extras tini \
+ && fc-cache -f
+
+# (Optional) broader glyph support:
+# RUN apk add --no-cache noto-fonts noto-fonts-cjk noto-fonts-emoji && fc-cache -f
 
 # Non-root user
 RUN adduser -D -H -s /sbin/nologin guacd
 
-# Copy the installed files from the build stage
+# Copy built artifacts
 COPY --from=build /stage/ /
 
-# Runtime dirs (avoid clean exit due to missing /run/guacd)
+# Runtime dirs to prevent clean exit
 RUN mkdir -p /run/guacd /var/log/guacd \
  && chown -R guacd:guacd /run/guacd /var/log/guacd
 
