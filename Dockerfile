@@ -1,31 +1,8 @@
-# Simpler approach - build from source in Alpine
-FROM alpine:3.18
-
-# Install runtime dependencies
-RUN apk add --no-cache \
-    cairo \
-    freerdp \
-    freerdp-libs \
-    libjpeg-turbo \
-    libpng \
-    libssh2 \
-    libtelnet \
-    libvncserver \
-    libvorbis \
-    libwebp \
-    libwebsockets \
-    nettle \
-    openssl \
-    pango \
-    pulseaudio-libs \
-    terminus-font \
-    ttf-dejavu \
-    ttf-liberation \
-    util-linux \
-    ffmpeg-libs
+# Multi-stage build to add custom keymap to guacd
+FROM alpine:3.18 as builder
 
 # Install build dependencies
-RUN apk add --no-cache --virtual .build-deps \
+RUN apk add --no-cache \
     autoconf \
     automake \
     build-base \
@@ -49,7 +26,7 @@ RUN apk add --no-cache --virtual .build-deps \
     ffmpeg-dev \
     wget
 
-# Download and build guacamole-server
+# Download guacamole-server source
 WORKDIR /tmp
 RUN wget https://downloads.apache.org/guacamole/1.6.0/source/guacamole-server-1.6.0.tar.gz \
     && tar -xzf guacamole-server-1.6.0.tar.gz
@@ -61,27 +38,21 @@ COPY pl_pl_qwerty.keymap /tmp/guacamole-server-1.6.0/src/protocols/rdp/keymaps/
 WORKDIR /tmp/guacamole-server-1.6.0/src/protocols/rdp
 RUN sed -i '/rdp_keymaps =/,/^[[:space:]]*$/{/en_us_qwerty.keymap/a\\\tkeymaps/pl_pl_qwerty.keymap \\' Makefile.am
 
-# Build and install
+# Build guacamole-server
 WORKDIR /tmp/guacamole-server-1.6.0
 RUN autoreconf -fi \
     && ./configure \
-        --prefix=/usr \
-        --sysconfdir=/etc \
-        --disable-static \
+        --prefix=/opt/guacamole \
+        --disable-guacenc \
         --disable-guaclog \
-    && make -j$(nproc) \
+    && make \
     && make install
 
-# Cleanup
-RUN apk del .build-deps \
-    && rm -rf /tmp/* /var/tmp/* /var/cache/apk/*
+# Final stage - use the official base
+FROM guacamole/guacd:1.6.0
 
-# Create guacd user
-RUN addgroup -S guacd && adduser -S -G guacd guacd
+# Copy the newly built RDP plugin with custom keymap
+COPY --from=builder /opt/guacamole/lib/libguac-client-rdp.so* /opt/guacamole/lib/
+COPY --from=builder /opt/guacamole/lib/freerdp2/*.so /opt/guacamole/lib/freerdp2/
 
-# Expose guacd port
-EXPOSE 4822
-
-# Set user and start guacd
-USER guacd
-CMD ["guacd", "-b", "0.0.0.0", "-f"]
+# Note: The official guacd image already has the library paths configured
