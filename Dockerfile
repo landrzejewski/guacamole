@@ -45,7 +45,7 @@ RUN cd /stage \
 ############################
 FROM alpine:3.20
 
-# Minimal runtime + fonts (fixes "unable to load font monospace")
+# Minimal runtime + fonts
 RUN apk add --no-cache \
   cairo libpng libjpeg-turbo libwebp util-linux \
   freerdp libvncserver libssh2 \
@@ -54,18 +54,18 @@ RUN apk add --no-cache \
   busybox-extras tini \
  && fc-cache -f
 
-# (Optional) broader glyph support:
-# RUN apk add --no-cache noto-fonts noto-fonts-cjk noto-fonts-emoji && fc-cache -f
+# Make a writable font cache and log dirs; keep guacd happy
+RUN mkdir -p /var/cache/fontconfig /run/guacd /var/log/guacd \
+ && chown -R guacd:guacd /var/cache/fontconfig /run/guacd /var/log/guacd
+
+# Tell Fontconfig to use the writable cache dir (user has no home)
+ENV XDG_CACHE_HOME=/var/cache/fontconfig
 
 # Non-root user
 RUN adduser -D -H -s /sbin/nologin guacd
 
 # Copy built artifacts
 COPY --from=build /stage/ /
-
-# Runtime dirs to prevent clean exit
-RUN mkdir -p /run/guacd /var/log/guacd \
- && chown -R guacd:guacd /run/guacd /var/log/guacd
 
 EXPOSE 4822
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
