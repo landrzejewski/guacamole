@@ -1,4 +1,4 @@
-FROM debian:bookworm-slim AS builder
+FROM debian:bullseye-slim AS builder
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -44,7 +44,7 @@ RUN autoreconf -fi \
     && make install
 
 # Final stage
-FROM debian:bookworm-slim
+FROM debian:bullseye-slim
 
 # Copy built files
 COPY --from=builder /usr/local /usr/local
@@ -61,20 +61,20 @@ RUN apt-get update && apt-get install -y \
     libjpeg62-turbo \
     libpng16-16 \
     libossp-uuid16 \
-    libavcodec59 \
-    libavformat59 \
-    libavutil57 \
-    libswscale6 \
+    libavcodec58 \
+    libavformat58 \
+    libavutil56 \
+    libswscale5 \
     freerdp2-x11 \
     libpango-1.0-0 \
     libssh2-1 \
     libtelnet2 \
     libvncclient1 \
-    libwebsockets17 \
+    libwebsockets16 \
     libpulse0 \
-    libssl3 \
+    libssl1.1 \
     libvorbis0a \
-    libwebp7 \
+    libwebp6 \
     && rm -rf /var/lib/apt/lists/* \
     && ldconfig
 
