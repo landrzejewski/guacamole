@@ -1,83 +1,36 @@
-FROM debian:bullseye-slim AS builder
+FROM guacamole/guacd:latest
 
-# Install build dependencies
+# Install build tools temporarily
+USER root
 RUN apt-get update && apt-get install -y \
     build-essential \
     git \
     automake \
     autoconf \
     libtool \
-    libcairo2-dev \
-    libjpeg62-turbo-dev \
-    libpng-dev \
-    libtool-bin \
-    libossp-uuid-dev \
-    libavcodec-dev \
-    libavformat-dev \
-    libavutil-dev \
-    libswscale-dev \
-    freerdp2-dev \
-    libpango1.0-dev \
-    libssh2-1-dev \
-    libtelnet-dev \
-    libvncserver-dev \
-    libwebsockets-dev \
-    libpulse-dev \
-    libssl-dev \
-    libvorbis-dev \
-    libwebp-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Clone and build guacamole-server
-RUN git clone https://github.com/apache/guacamole-server.git /guacamole-server
-WORKDIR /guacamole-server
+# Get the source code that matches the installed version
+RUN GUACD_VERSION=$(guacd -v | grep -oP 'guacd version \K[0-9.]+') && \
+    cd /tmp && \
+    wget -O guacamole-server.tar.gz "https://apache.org/dyn/closer.lua/guacamole/${GUACD_VERSION}/source/guacamole-server-${GUACD_VERSION}.tar.gz?action=download" && \
+    tar -xzf guacamole-server.tar.gz
 
-# Copy your custom keymap BEFORE building
-COPY pl_pl_qwerty.keymap /guacamole-server/src/protocols/rdp/keymaps/
+# Copy your keymap
+COPY pl_pl_qwerty.keymap /tmp/guacamole-server-*/src/protocols/rdp/keymaps/
 
-# You might also need to add it to Makefile.am
-RUN echo "pl_pl_qwerty.keymap" >> /guacamole-server/src/protocols/rdp/keymaps/Makefile.am
+# Rebuild just the RDP protocol module
+RUN cd /tmp/guacamole-server-* && \
+    autoreconf -fi && \
+    ./configure && \
+    cd src/protocols/rdp && \
+    make && \
+    make install
 
-RUN autoreconf -fi \
-    && ./configure \
-    && make \
-    && make install
+# Clean up
+RUN apt-get remove -y build-essential git automake autoconf libtool && \
+    apt-get autoremove -y && \
+    rm -rf /tmp/guacamole-server* && \
+    ldconfig
 
-# Final stage
-FROM debian:bullseye-slim
-
-# Copy built files
-COPY --from=builder /usr/local /usr/local
-
-# Install runtime dependencies only
-RUN apt-get update && apt-get install -y \
-    netcat-openbsd \
-    ca-certificates \
-    ghostscript \
-    fonts-liberation \
-    fonts-dejavu \
-    xfonts-terminus \
-    libcairo2 \
-    libjpeg62-turbo \
-    libpng16-16 \
-    libossp-uuid16 \
-    libavcodec58 \
-    libavformat58 \
-    libavutil56 \
-    libswscale5 \
-    freerdp2-x11 \
-    libpango-1.0-0 \
-    libssh2-1 \
-    libtelnet2 \
-    libvncclient1 \
-    libwebsockets16 \
-    libpulse0 \
-    libssl1.1 \
-    libvorbis0a \
-    libwebp6 \
-    && rm -rf /var/lib/apt/lists/* \
-    && ldconfig
-
-EXPOSE 4822
-ENTRYPOINT ["/usr/local/sbin/guacd"]
-CMD ["-b", "0.0.0.0", "-f"]
+USER guacd
